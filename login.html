@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-md w-96">
+        <h2 class="text-2xl font-bold mb-6 text-center">เข้าสู่ระบบ</h2>
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">ชื่อผู้ใช้</label>
+                <input type="text" id="username" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">รหัสผ่าน</label>
+                <input type="password" id="password" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                เข้าสู่ระบบ
+            </button>
+        </form>
+        <p class="mt-4 text-center">
+            ยังไม่มีบัญชี? 
+            <a href="index.html" class="text-blue-500 hover:text-blue-600">ลงทะเบียน</a>
+        </p>
+    </div>
+
+    <script>
+        const API_URL = 'https://express-test-api-l0zc.onrender.com';
+
+        async function saveTokenToFile(token) {
+            // Check if the File System Access API is supported
+            if ('showSaveFilePicker' in window) {
+                try {
+                    // Open file picker to choose save location
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: 'jwt_token.txt',
+                        types: [{
+                            description: 'Text File',
+                            accept: {'text/plain': ['.txt']}
+                        }]
+                    });
+
+                    // Create a writable stream
+                    const writable = await fileHandle.createWritable();
+                    
+                    // Write the token to the file
+                    await writable.write(token);
+                    
+                    // Close the file
+                    await writable.close();
+
+                    alert('บันทึก Token สำเร็จ');
+                } catch (error) {
+                    console.error('เกิดข้อผิดพลาดในการบันทึกไฟล์:', error);
+                    alert('ไม่สามารถบันทึกไฟล์ Token ได้');
+                }
+            } else {
+                // Fallback for browsers without File System Access API
+                const blob = new Blob([token], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'jwt_token.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Store token in localStorage
+                    localStorage.setItem('token', data.token);
+                    
+                    // Print JWT token details to console
+                    console.log('===== JWT Token Information =====');
+                    console.log('Full Token:', data.token);
+                    
+                    // Split token into parts
+                    const tokenParts = data.token.split('.');
+                    if (tokenParts.length === 3) {
+                        // Decode header
+                        const header = JSON.parse(atob(tokenParts[0]));
+                        console.log('Token Header:', header);
+                        
+                        // Decode payload
+                        const payload = JSON.parse(atob(tokenParts[1]));
+                        console.log('Token Payload:', payload);
+                    }
+                    console.log('=============================');
+                    
+                    // Save token to file
+                    await saveTokenToFile(data.token);
+                    
+                    // Redirect to profile page
+                    window.location.href = 'profile.html';
+                } else {
+                    alert(data.message || 'การเข้าสู่ระบบไม่สำเร็จ');
+                }                
+            } catch (error) {
+                console.error('Error during login:', error);
+                alert('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+            }
+        });
+    </script>
+</body>
+</html>

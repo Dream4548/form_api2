@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>โปรไฟล์ผู้ใช้</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --background-color: #f4f6f7;
+      --text-color: #2c3e50;
+      --border-radius: 8px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Prompt', Arial, sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: white;
+      padding: 30px;
+      border-radius: var(--border-radius);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .profile-header {
+      text-align: center;
+      margin-bottom: 30px;
+      color: var(--primary-color);
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--primary-color);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: var(--border-radius);
+      font-family: 'Prompt', sans-serif;
+      transition: border-color 0.3s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--secondary-color);
+      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--border-radius);
+      background-color: var(--secondary-color);
+      color: white;
+      cursor: pointer;
+      font-family: 'Prompt', sans-serif;
+      font-weight: 500;
+      transition: background-color 0.3s ease, transform 0.1s ease;
+    }
+
+    .btn:hover {
+      background-color: #2980b9;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background-color: #95a5a6;
+      margin-left: 10px;
+    }
+
+    .btn-secondary:hover {
+      background-color: #7f8c8d;
+    }
+
+    .btn:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+
+    .error {
+      color: #e74c3c;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .profile-view {
+      background-color: #f8f9fa;
+      border-radius: var(--border-radius);
+      padding: 20px;
+    }
+
+    .profile-view p {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <h1 class="profile-header">โปรไฟล์ผู้ใช้</h1>
+
+    <div v-if="error" class="error">{{ error }}</div>
+
+    <!-- Display user profile -->
+    <div v-if="!isEditing" class="profile-view">
+      <p><strong>ชื่อผู้ใช้:</strong> {{ profile.username }}</p>
+      <p><strong>อีเมล:</strong> {{ profile.email }}</p>
+      <p><strong>จังหวัด:</strong> {{ profile.province }}</p>
+      <p><strong>อำเภอ:</strong> {{ profile.district }}</p>
+      <p><strong>ตำบล:</strong> {{ profile.sub_district }}</p>
+      <button @click="toggleEdit" class="btn">แก้ไขโปรไฟล์</button>
+    </div>
+
+    <!-- Edit user profile -->
+    <div v-else>
+      <div class="form-group">
+        <label>ชื่อผู้ใช้:</label>
+        <input v-model="formData.username" />
+      </div>
+      
+      <div class="form-group">
+        <label>อีเมล:</label>
+        <input v-model="formData.email" />
+      </div>
+
+      <div class="form-group">
+        <label>จังหวัด:</label>
+        <select v-model="selectedProvince" @change="loadDistricts">
+          <option value="">เลือกจังหวัด</option>
+          <option v-for="province in provinces" :key="province" :value="province">
+            {{ province }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>อำเภอ:</label>
+        <select v-model="selectedDistrict" @change="loadSubDistricts" :disabled="!selectedProvince">
+          <option value="">เลือกอำเภอ</option>
+          <option v-for="district in districts" :key="district" :value="district">
+            {{ district }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>ตำบล:</label>
+        <select v-model="formData.sub_district" :disabled="!selectedDistrict">
+          <option value="">เลือกตำบล</option>
+          <option v-for="subDistrict in subDistricts" :key="subDistrict" :value="subDistrict">
+            {{ subDistrict }}
+          </option>
+        </select>
+      </div>
+
+      <div>
+        <button @click="updateProfile" :disabled="loading" class="btn">บันทึก</button>
+        <button @click="toggleEdit" class="btn btn-secondary">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const profile = ref({});
+        const formData = ref({
+          username: "",
+          email: "",
+          province: "",
+          district: "",
+          sub_district: "",
+        });
+        const isEditing = ref(false);
+        const loading = ref(false);
+        const error = ref("");
+
+        // Address-related refs
+        const provinces = ref([]);
+        const districts = ref([]);
+        const subDistricts = ref([]);
+        const selectedProvince = ref("");
+        const selectedDistrict = ref("");
+
+        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3NjEyNDUxMGJhOTQyMjI2MzhjMGMyOSIsInVzZXJuYW1lIjoic2l4YXRvbTEyIiwiaWF0IjoxNzM0NDIxNjk5LCJleHAiOjE3MzQ1MDgwOTl9.PfTdAdtYqOa6alIKg95pWH77oWob6njyhgGonmlBxO4"; // Replace with your JWT token
+
+        const fetchProfile = async () => {
+          try {
+            const response = await axios.get("https://express-test-api-l0zc.onrender.com/profile", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            profile.value = response.data;
+            formData.value = { ...response.data };
+          } catch (err) {
+            error.value = "ไม่สามารถดึงข้อมูลโปรไฟล์ได้";
+          }
+        };
+
+        const fetchProvinces = async () => {
+          try {
+            const response = await axios.get("https://express-test-api-l0zc.onrender.com/provinces");
+            provinces.value = response.data;
+          } catch (err) {
+            error.value = "ไม่สามารถดึงข้อมูลจังหวัดได้";
+          }
+        };
+
+        const loadDistricts = async () => {
+          districts.value = [];
+          subDistricts.value = [];
+          selectedDistrict.value = "";
+          formData.value.district = "";
+          formData.value.sub_district = "";
+
+          if (!selectedProvince.value) return;
+
+          try {
+            const response = await axios.get(`https://express-test-api-l0zc.onrender.com/provinces/${selectedProvince.value}`);
+            districts.value = response.data;
+            formData.value.province = selectedProvince.value;
+          } catch (err) {
+            error.value = "ไม่สามารถดึงข้อมูลอำเภอได้";
+          }
+        };
+
+        const loadSubDistricts = async () => {
+          subDistricts.value = [];
+          formData.value.sub_district = "";
+
+          if (!selectedProvince.value || !selectedDistrict.value) return;
+
+          try {
+            const response = await axios.get(`https://express-test-api-l0zc.onrender.com/provinces/${selectedProvince.value}/${selectedDistrict.value}`);
+            subDistricts.value = response.data;
+            formData.value.district = selectedDistrict.value;
+          } catch (err) {
+            error.value = "ไม่สามารถดึงข้อมูลตำบลได้";
+          }
+        };
+
+        const toggleEdit = () => {
+          isEditing.value = !isEditing.value;
+
+          if (isEditing.value) {
+            // Reset address-related selections
+            selectedProvince.value = profile.value.province || "";
+            selectedDistrict.value = profile.value.district || "";
+            
+            // Load districts and subdistricts if province is already selected
+            if (selectedProvince.value) {
+              loadDistricts();
+              if (profile.value.district) {
+                selectedDistrict.value = profile.value.district;
+                loadSubDistricts();
+              }
+            }
+          }
+        };
+
+        const updateProfile = async () => {
+          loading.value = true;
+          error.value = "";
+
+          try {
+            await axios.put(
+              "https://express-test-api-l0zc.onrender.com/profile",
+              formData.value,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            profile.value = { ...formData.value };
+            isEditing.value = false;
+          } catch (err) {
+            error.value = "ไม่สามารถอัปเดตโปรไฟล์ได้";
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        onMounted(() => {
+          fetchProfile();
+          fetchProvinces();
+        });
+
+        return {
+          profile,
+          formData,
+          isEditing,
+          loading,
+          error,
+          provinces,
+          districts,
+          subDistricts,
+          selectedProvince,
+          selectedDistrict,
+          toggleEdit,
+          updateProfile,
+          loadDistricts,
+          loadSubDistricts,
+        };
+      },
+    }).mount("#app");
+  </script>
+</body>
+</html>
